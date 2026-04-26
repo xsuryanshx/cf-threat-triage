@@ -23,7 +23,7 @@ This file documents the AI-assisted prompts used during the development of Threa
 ## 2. Deploying to Cloudflare
 
 **Prompt:**
-> `f75d5c10-6dd8-46a7-98d8-d2d178c87c6e` this is my db id — run the commands for triage agent
+> `<REDACTED-DB-ID>` this is my db id — run the commands for triage agent
 
 **What it produced:**
 - Updated `wrangler.toml` with real D1 database ID
