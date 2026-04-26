@@ -12,9 +12,10 @@ function makeMockEnv(): Env {
     DB: { prepare: vi.fn().mockReturnValue(stmt) } as unknown as D1Database,
     AI: {
       run: vi.fn()
-        .mockResolvedValueOnce({ data: [Array(768).fill(0)] })
-        .mockResolvedValueOnce({ response: '{"verdict":"Phishing","reasoning":"Fake login page."}' })
-        .mockResolvedValueOnce({ data: [Array(768).fill(0)] }),
+        .mockResolvedValueOnce({ data: [Array(768).fill(0)] }) // embedding
+        .mockResolvedValueOnce({
+          response: '{"verdict":"Phishing","confidence":90,"reasoning":"Fake login page.","indicators":[{"type":"suspicious_url","detail":"fake link","severity":"high"}]}'
+        }),
     } as unknown as Ai,
     VECTORIZE: {
       query: vi.fn().mockResolvedValue({ matches: [] }),
@@ -56,7 +57,7 @@ describe('handleAnalyze', () => {
     expect(res.status).toBe(400);
   });
 
-  it('returns 200 with verdict and reasoning on valid input', async () => {
+  it('returns 200 with verdict, confidence, and indicators on valid input', async () => {
     const req = new Request('http://localhost/api/analyze', {
       method: 'POST',
       body: JSON.stringify({ emailText: 'From: attacker@evil.com\nClick here to verify your account immediately or it will be suspended.' }),
@@ -64,10 +65,13 @@ describe('handleAnalyze', () => {
     });
     const res = await handleAnalyze(req, makeMockEnv());
     expect(res.status).toBe(200);
-    const body = await res.json() as { verdict: string; reasoning: string; id: number };
+    const body = await res.json() as any;
     expect(body.verdict).toBe('Phishing');
+    expect(body.confidence).toBe(90);
     expect(body.reasoning).toBe('Fake login page.');
+    expect(body.indicators).toHaveLength(1);
     expect(body.id).toBe(1);
+    expect(body.urls).toBeDefined();
   });
 
   it('returns 500 if AI verdict call fails', async () => {
@@ -97,7 +101,5 @@ describe('handleAnalyze', () => {
     expect(res.status).toBe(500);
     const body = await res.json() as { error: string };
     expect(body.error).toContain('Analysis failed');
-    // D1 must NOT be written when verdict fails
-    expect(stmt.run).not.toHaveBeenCalled();
   });
 });

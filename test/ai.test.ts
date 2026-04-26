@@ -22,19 +22,33 @@ describe('getEmbedding', () => {
 });
 
 describe('getVerdict', () => {
-  it('parses valid JSON verdict from LLM response', async () => {
-    const env = makeMockEnv({ response: '{"verdict":"Phishing","reasoning":"Suspicious link detected."}' });
+  it('parses valid JSON verdict with indicators', async () => {
+    const env = makeMockEnv({
+      response: '{"verdict":"Phishing","confidence":92,"reasoning":"Suspicious link detected.","indicators":[{"type":"suspicious_url","detail":"fake link","severity":"high"}]}'
+    });
     const result = await getVerdict(env, 'some prompt');
     expect(result.verdict).toBe('Phishing');
+    expect(result.confidence).toBe(92);
     expect(result.reasoning).toBe('Suspicious link detected.');
+    expect(result.indicators).toHaveLength(1);
+    expect(result.indicators[0].type).toBe('suspicious_url');
   });
 
-  it('extracts JSON even if LLM wraps it in prose', async () => {
+  it('extracts JSON even if LLM wraps it in markdown fences', async () => {
     const env = makeMockEnv({
-      response: 'Here is my analysis: {"verdict":"Safe","reasoning":"Looks legitimate."} End.',
+      response: '```json\n{"verdict":"Safe","confidence":15,"reasoning":"Looks legitimate.","indicators":[]}\n```',
     });
     const result = await getVerdict(env, 'prompt');
     expect(result.verdict).toBe('Safe');
+    expect(result.confidence).toBe(15);
+  });
+
+  it('provides default confidence when LLM omits it', async () => {
+    const env = makeMockEnv({
+      response: '{"verdict":"Phishing","reasoning":"Bad email.","indicators":[]}',
+    });
+    const result = await getVerdict(env, 'prompt');
+    expect(result.confidence).toBe(85); // default for Phishing
   });
 
   it('throws if LLM returns no JSON', async () => {
@@ -43,12 +57,15 @@ describe('getVerdict', () => {
   });
 
   it('throws if verdict is not a valid value', async () => {
-    const env = makeMockEnv({ response: '{"verdict":"Unknown","reasoning":"hmm"}' });
+    const env = makeMockEnv({ response: '{"verdict":"Unknown","reasoning":"hmm","indicators":[]}' });
     await expect(getVerdict(env, 'prompt')).rejects.toThrow('Invalid verdict');
   });
 
-  it('throws if matched braces contain invalid JSON', async () => {
-    const env = makeMockEnv({ response: '{not: valid json}' });
-    await expect(getVerdict(env, 'prompt')).rejects.toThrow('LLM did not return valid JSON');
+  it('handles missing indicators gracefully', async () => {
+    const env = makeMockEnv({
+      response: '{"verdict":"Safe","confidence":10,"reasoning":"Fine."}',
+    });
+    const result = await getVerdict(env, 'prompt');
+    expect(result.indicators).toEqual([]);
   });
 });

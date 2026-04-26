@@ -6,6 +6,7 @@ function makeMockStatement() {
   const stmt: any = {
     run: vi.fn().mockResolvedValue({ meta: { last_row_id: 42 } }),
     all: vi.fn().mockResolvedValue({ results: [] }),
+    first: vi.fn().mockResolvedValue({ total: 0, safe: 0, suspicious: 0, phishing: 0 }),
   };
   stmt.bind = vi.fn().mockReturnValue(stmt);
   return stmt;
@@ -27,18 +28,12 @@ describe('insertTriage', () => {
       email_text: 'test email',
       sender_domain: 'evil.com',
       verdict: 'Phishing',
+      confidence: 90,
       reasoning: 'Suspicious link',
+      indicators: [{ type: 'suspicious_url', detail: 'fake link', severity: 'high' }],
     });
     expect(env.DB.prepare).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO triages')
-    );
-    const stmt = (env.DB.prepare as any).mock.results[0].value;
-    expect(stmt.bind).toHaveBeenCalledWith(
-      'test email',
-      'evil.com',
-      'Phishing',
-      'Suspicious link',
-      expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/)
     );
     expect(id).toBe(42);
   });

@@ -3,8 +3,8 @@ import { handleHistory } from '../src/routes/history';
 import type { Env, Triage } from '../src/types';
 
 const mockTriages: Triage[] = [
-  { id: 2, email_text: 'Phishing email body', sender_domain: 'evil.com', verdict: 'Phishing', reasoning: 'Bad link', created_at: '2026-04-25T10:00:00.000Z' },
-  { id: 1, email_text: 'Normal email body', sender_domain: 'google.com', verdict: 'Safe', reasoning: 'Legitimate', created_at: '2026-04-25T09:00:00.000Z' },
+  { id: 2, email_text: 'Phishing email body', sender_domain: 'evil.com', verdict: 'Phishing', confidence: 92, reasoning: 'Bad link', indicators: '[]', created_at: '2026-04-25T10:00:00.000Z' },
+  { id: 1, email_text: 'Normal email body', sender_domain: 'google.com', verdict: 'Safe', confidence: 15, reasoning: 'Legitimate', indicators: '[]', created_at: '2026-04-25T09:00:00.000Z' },
 ];
 
 function makeMockEnv(results: Triage[]): Env {
