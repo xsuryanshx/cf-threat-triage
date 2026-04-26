@@ -2,7 +2,7 @@ import type { Env, Triage } from '../types';
 
 export async function insertTriage(
   env: Env,
-  data: { email_text: string; sender_domain: string | null; verdict: string; reasoning: string }
+  data: { email_text: string; sender_domain: string | null; verdict: Triage['verdict']; reasoning: string }
 ): Promise<number> {
   const result = await env.DB.prepare(
     'INSERT INTO triages (email_text, sender_domain, verdict, reasoning, created_at) VALUES (?, ?, ?, ?, ?)'

@@ -32,6 +32,14 @@ describe('insertTriage', () => {
     expect(env.DB.prepare).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO triages')
     );
+    const stmt = (env.DB.prepare as any).mock.results[0].value;
+    expect(stmt.bind).toHaveBeenCalledWith(
+      'test email',
+      'evil.com',
+      'Phishing',
+      'Suspicious link',
+      expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/)
+    );
     expect(id).toBe(42);
   });
 });
