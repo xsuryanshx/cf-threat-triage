@@ -1,0 +1,19 @@
+name = "threat-triage"
+main = "src/index.ts"
+compatibility_date = "2024-11-01"
+compatibility_flags = ["nodejs_compat"]
+
+[assets]
+directory = "./public"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "threat-triage-db"
+database_id = "PLACEHOLDER"
+
+[[vectorize]]
+binding = "VECTORIZE"
+index_name = "triage-embeddings"
+
+[ai]
+binding = "AI"
