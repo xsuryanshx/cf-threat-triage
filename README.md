@@ -19,17 +19,9 @@
 
 ---
 
-## Screenshots
+## Demo
 
-<div align="center">
-
-| Analyze | Results | Dashboard |
-|---|---|---|
-| ![Analyze](docs/screenshots/analyze.png) | ![Results](docs/screenshots/results.png) | ![Dashboard](docs/screenshots/dashboard.png) |
-
-</div>
-
-> Drop screenshots into `docs/screenshots/` to populate the table above.
+<video src="demo.mp4" width="100%" controls></video>
 
 ---
 
