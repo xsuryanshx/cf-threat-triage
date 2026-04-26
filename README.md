@@ -19,26 +19,56 @@
 
 ---
 
-## Demo
-
-> 📹 **Recording in progress** — drop a screen recording as `demo.mp4` in the repo root and it will embed here automatically.
-
-<!--
-To add your demo video:
-1. Record with QuickTime / Loom / OBS
-2. Upload to the GitHub repo: drag into any Issue comment to get a CDN URL, then paste below
-3. Or commit the file directly and use the relative path
-
-<video src="demo.mp4" width="100%" controls autoplay muted loop></video>
--->
+## Screenshots
 
 <div align="center">
 
-[![ThreatTriage Demo](https://img.shields.io/badge/▶_Watch_Demo-Click_to_play-f97316?style=for-the-badge)](https://threat-triage.suryanshsinghrawat.workers.dev)
-
-*Analyzing a phishing email → threat gauge → indicator breakdown → semantic search*
+| Analyze | Results | Dashboard |
+|---|---|---|
+| ![Analyze](docs/screenshots/analyze.png) | ![Results](docs/screenshots/results.png) | ![Dashboard](docs/screenshots/dashboard.png) |
 
 </div>
+
+> Drop screenshots into `docs/screenshots/` to populate the table above.
+
+---
+
+## Browser Extension
+
+ThreatTriage also ships as a **Chrome / Edge / Brave extension** — a compact popup that lives in your toolbar.
+
+### Features
+- **Auto-extracts** the open email from Gmail and Outlook Web — no copy-paste needed
+- **Threat gauge** showing confidence score 0–100
+- **Indicator cards** with severity levels (🔴 critical → 🔵 low)
+- `Cmd/Ctrl + Enter` to analyze
+- Links back to the full web app
+
+### Install (Development)
+
+```bash
+# 1. Build icons
+cd extension && npm install && node generate-icons.js
+
+# 2. Load in Chrome
+# Chrome → chrome://extensions → Enable Developer Mode
+# → Load unpacked → select the extension/ folder
+```
+
+### Extension Structure
+
+```
+extension/
+├── manifest.json    # MV3, permissions for Gmail + Outlook + API
+├── popup.html       # Compact 400px popup UI
+├── popup.js         # Analyze logic, auto-extract, render results
+├── content.js       # Injected into Gmail/Outlook — extracts email text
+├── generate-icons.js
+└── icons/
+    ├── 16.png
+    ├── 48.png
+    └── 128.png
+```
 
 ---
 
