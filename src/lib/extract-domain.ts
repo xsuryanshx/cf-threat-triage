@@ -6,7 +6,7 @@
 export function extractSenderDomain(emailText: string): string | null {
   // Match "From: Name <user@domain.com>" or "From: user@domain.com"
   const fromMatch = emailText.match(
-    /^From:.*?[\s<]([a-zA-Z0-9._%+-]+@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,}))/im
+    /^From:[\s\S]*?([a-zA-Z0-9._%+-]+@([a-zA-Z0-9.-]+\.[a-zA-Z]{2,}))/im
   );
   if (fromMatch) return fromMatch[2].toLowerCase();
 

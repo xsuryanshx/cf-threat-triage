@@ -22,8 +22,18 @@ describe('extractSenderDomain', () => {
     expect(extractSenderDomain(email)).toBeNull();
   });
 
-  it('lowercases the domain', () => {
+  it('lowercases the domain from From header', () => {
     const email = 'From: User@UPPER.COM';
     expect(extractSenderDomain(email)).toBe('upper.com');
+  });
+
+  it('lowercases the domain from body fallback', () => {
+    const email = 'No headers here. Contact: alert@SCAM.IO for details';
+    expect(extractSenderDomain(email)).toBe('scam.io');
+  });
+
+  it('handles From: with no space before address', () => {
+    const email = 'From:attacker@evil.com\nSubject: Hi';
+    expect(extractSenderDomain(email)).toBe('evil.com');
   });
 });
