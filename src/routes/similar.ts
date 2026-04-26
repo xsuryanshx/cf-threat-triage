@@ -15,8 +15,19 @@ export async function handleSimilar(request: Request, env: Env): Promise<Respons
     return Response.json({ error: 'emailText is required' }, { status: 400 });
   }
 
-  const embedding = await getEmbedding(env, emailText);
-  const vectorResults = await env.VECTORIZE.query(embedding, { topK: 5, returnMetadata: 'all' });
+  let embedding: number[];
+  try {
+    embedding = await getEmbedding(env, emailText);
+  } catch {
+    return Response.json({ error: 'Failed to generate embedding. Please try again.' }, { status: 500 });
+  }
+
+  let vectorResults: Awaited<ReturnType<typeof env.VECTORIZE.query>>;
+  try {
+    vectorResults = await env.VECTORIZE.query(embedding, { topK: 5, returnMetadata: 'all' });
+  } catch {
+    return Response.json({ error: 'Vector search unavailable. Please try again.' }, { status: 503 });
+  }
 
   if (vectorResults.matches.length === 0) {
     return Response.json([]);
@@ -25,7 +36,13 @@ export async function handleSimilar(request: Request, env: Env): Promise<Respons
   const ids = vectorResults.matches
     .map((m) => Number(m.metadata?.triage_id))
     .filter((id) => Number.isFinite(id));
-  const triages = await getTriagesByIds(env, ids);
+
+  let triages: Triage[];
+  try {
+    triages = await getTriagesByIds(env, ids);
+  } catch {
+    return Response.json({ error: 'Failed to load similar triages.' }, { status: 500 });
+  }
 
   const result = vectorResults.matches
     .map((m) => {
