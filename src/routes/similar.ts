@@ -11,8 +11,8 @@ export async function handleSimilar(request: Request, env: Env): Promise<Respons
   }
 
   const { emailText } = body;
-  if (!emailText || emailText.trim().length < 1) {
-    return Response.json({ error: 'emailText is required' }, { status: 400 });
+  if (!emailText || emailText.trim().length < 10) {
+    return Response.json({ error: 'emailText must be at least 10 characters' }, { status: 400 });
   }
 
   let embedding: number[];

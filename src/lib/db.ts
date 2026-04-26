@@ -32,11 +32,12 @@ export async function getAllTriages(env: Env, limit: number = 50): Promise<Triag
 
 export async function getTriagesByIds(env: Env, ids: number[]): Promise<Triage[]> {
   if (ids.length === 0) return [];
-  const placeholders = ids.map(() => '?').join(',');
+  const safeIds = ids.slice(0, 50); // guard against excessive D1 bind params
+  const placeholders = safeIds.map(() => '?').join(',');
   const result = await env.DB.prepare(
     `SELECT * FROM triages WHERE id IN (${placeholders})`
   )
-    .bind(...ids)
+    .bind(...safeIds)
     .all<Triage>();
   return result.results;
 }

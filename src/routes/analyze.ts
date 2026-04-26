@@ -56,7 +56,7 @@ export async function handleAnalyze(request: Request, env: Env): Promise<Respons
     }
   }
 
-  let verdict: string;
+  let verdict: Triage['verdict'];
   let reasoning: string;
   try {
     const result = await getVerdict(

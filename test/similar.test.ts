@@ -37,6 +37,18 @@ describe('handleSimilar', () => {
     expect(res.status).toBe(400);
   });
 
+  it('returns 400 for emailText shorter than 10 characters', async () => {
+    const req = new Request('http://localhost/api/similar', {
+      method: 'POST',
+      body: JSON.stringify({ emailText: 'short' }),
+      headers: { 'Content-Type': 'application/json' },
+    });
+    const res = await handleSimilar(req, makeMockEnv([], []));
+    expect(res.status).toBe(400);
+    const body = await res.json() as { error: string };
+    expect(body.error).toContain('10 characters');
+  });
+
   it('returns 200 with matched triages enriched with score', async () => {
     const req = new Request('http://localhost/api/similar', {
       method: 'POST',
