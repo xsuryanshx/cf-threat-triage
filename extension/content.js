@@ -21,17 +21,20 @@ chrome.runtime.onMessage.addListener((msg) => {
 function inject() {
   const host = document.createElement('div');
   host.id = SIDEBAR_ID;
+  // width:0 + overflow:visible so children (tab & panel) can extend left
+  // without pushing the tab away from the right edge.
+  // Appended to <html> not <body> to escape Gmail's transform containing blocks.
   Object.assign(host.style, {
     position: 'fixed',
     top: '0',
     right: '0',
+    width: '0',
     height: '100vh',
     zIndex: '2147483647',
-    display: 'flex',
-    alignItems: 'stretch',
+    overflow: 'visible',
     pointerEvents: 'none',
   });
-  document.body.appendChild(host);
+  (document.documentElement || document.body).appendChild(host);
 
   const shadow = host.attachShadow({ mode: 'open' });
   shadow.innerHTML = buildHTML();
@@ -50,24 +53,28 @@ function buildHTML() {
   /* ── Tab (always visible, sticks out from right edge) ── */
   #tab {
     pointer-events: all;
-    position: relative;
-    width: 32px;
-    align-self: center;
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
     cursor: pointer;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 6px;
+    width: 32px;
     background: #f97316;
     color: #fff;
     border-radius: 8px 0 0 8px;
     padding: 14px 6px;
     box-shadow: -3px 0 16px rgba(0,0,0,0.35);
     user-select: none;
-    transition: background 0.15s, width 0.15s;
+    transition: background 0.15s, right 0.3s cubic-bezier(0.4,0,0.2,1);
+    z-index: 2;
   }
   #tab:hover { background: #ea580c; }
+  #tab.open { right: 380px; }
   #tab-icon { width: 18px; height: 18px; flex-shrink: 0; }
   #tab-label {
     writing-mode: vertical-rl;
@@ -82,13 +89,15 @@ function buildHTML() {
   #tab-arrow {
     font-size: 14px;
     font-weight: 700;
-    transition: transform 0.3s;
     line-height: 1;
   }
 
   /* ── Panel ── */
   #panel {
-    pointer-events: all;
+    pointer-events: none;
+    position: absolute;
+    top: 0;
+    right: 0;
     width: 380px;
     height: 100vh;
     background: #0a0a14;
@@ -100,8 +109,12 @@ function buildHTML() {
     transform: translateX(100%);
     transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
     will-change: transform;
+    z-index: 1;
   }
-  #panel.open { transform: translateX(0); }
+  #panel.open {
+    transform: translateX(0);
+    pointer-events: all;
+  }
 
   /* ── Header ── */
   .hd {
@@ -445,18 +458,16 @@ function wireUp(shadow, host) {
   function open() {
     isOpen = true;
     panel.classList.add('open');
+    tabEl.classList.add('open');   // slides tab left to sit at panel edge
     tabArrow.textContent = '›';
-    host.style.pointerEvents = 'all';
     tryAutoExtract();
   }
 
   function close() {
     isOpen = false;
     panel.classList.remove('open');
+    tabEl.classList.remove('open'); // slides tab back to right edge
     tabArrow.textContent = '‹';
-    host.style.pointerEvents = 'none';
-    // Tab itself still needs pointer events
-    tabEl.style.pointerEvents = 'all';
   }
 
   window.__ttToggle = () => isOpen ? close() : open();
