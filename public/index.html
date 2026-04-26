@@ -70,13 +70,6 @@
   </div>
 
 <script>
-  // ── Safe DOM helper — escapes user content before inserting into the DOM ──
-  function esc(str) {
-    const el = document.createElement('span');
-    el.textContent = String(str ?? '');
-    return el.innerHTML; // browser-escaped HTML entities
-  }
-
   // ── Verdict helpers ───────────────────────────────────────────────────────
   function verdictClasses(verdict) {
     const map = {
@@ -113,7 +106,8 @@
 
     const preview = document.createElement('p');
     preview.className = 'text-gray-500 text-xs mt-1.5 truncate';
-    preview.textContent = (t.email_text || '').slice(0, 100) + '…';
+    const emailTxt = t.email_text || '';
+    preview.textContent = emailTxt.length > 100 ? emailTxt.slice(0, 100) + '…' : emailTxt;
 
     const detail = document.createElement('div');
     detail.className = 'hidden mt-3 text-gray-300 text-sm leading-relaxed border-t border-gray-700 pt-3';
@@ -244,6 +238,7 @@
   async function loadHistory() {
     const historyList  = document.getElementById('history-list');
     const historyEmpty = document.getElementById('history-empty');
+    historyEmpty.classList.add('hidden');
     historyList.replaceChildren();
     const loading = document.createElement('p');
     loading.className = 'text-gray-600 text-sm';
@@ -253,11 +248,11 @@
     try {
       const res = await fetch('/api/history');
       const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Server error');
       historyList.replaceChildren();
       if (!data.length) {
         historyEmpty.classList.remove('hidden');
       } else {
-        historyEmpty.classList.add('hidden');
         data.forEach((t) => historyList.appendChild(buildTriageCard(t)));
       }
     } catch {
@@ -278,18 +273,24 @@
     const recognition = new SR();
     recognition.continuous = false;
     recognition.interimResults = false;
+    let recognizing = false;
     micBtn.addEventListener('click', () => {
+      if (recognizing) return;
+      recognizing = true;
       recognition.start();
       micBtn.classList.add('recording', 'text-orange-400');
     });
     recognition.onresult = (event) => {
+      recognizing = false;
       const transcript = event.results[0][0].transcript;
       emailInput.value += (emailInput.value ? ' ' : '') + transcript;
       micBtn.classList.remove('recording', 'text-orange-400');
     };
     recognition.onerror = () => {
+      recognizing = false;
       micBtn.classList.remove('recording', 'text-orange-400');
     };
+    recognition.onend = () => { recognizing = false; };
   }
 </script>
 </body>
