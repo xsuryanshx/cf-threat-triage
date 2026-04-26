@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ThreatTriage</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .recording { animation: pulse 1s cubic-bezier(0.4,0,0.6,1) infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+  </style>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen font-mono">
+
+  <!-- Nav -->
+  <nav class="border-b border-gray-700 px-6 py-4 flex items-center gap-6">
+    <span class="text-orange-400 font-bold text-lg tracking-tight">ThreatTriage</span>
+    <button id="tab-analyze" class="text-sm px-3 py-1.5 rounded bg-orange-500 text-white font-medium">Analyze</button>
+    <button id="tab-history" class="text-sm px-3 py-1.5 rounded text-gray-400 hover:text-white transition-colors">History</button>
+  </nav>
+
+  <!-- Analyze View -->
+  <div id="view-analyze" class="max-w-3xl mx-auto px-6 py-8">
+    <p class="text-gray-400 text-sm mb-4">Paste a suspicious email below to analyze it for phishing indicators.</p>
+    <div class="relative">
+      <textarea
+        id="email-input"
+        rows="10"
+        class="w-full bg-gray-800 border border-gray-700 rounded-lg p-4 pr-14 text-sm text-gray-100 resize-y focus:outline-none focus:border-orange-500 placeholder-gray-600"
+        placeholder="Paste email here (headers + body)..."
+      ></textarea>
+      <button
+        id="mic-btn"
+        class="absolute top-3 right-3 p-2 rounded-full bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-orange-400 transition-colors"
+        title="Voice input"
+      >mic</button>
+    </div>
+    <div class="mt-4 flex items-center gap-4">
+      <button
+        id="analyze-btn"
+        class="px-6 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+      >Analyze</button>
+      <span id="status-text" class="text-gray-500 text-sm hidden">Analyzing...</span>
+    </div>
+
+    <!-- Results -->
+    <div id="results" class="mt-8 hidden">
+      <div class="flex items-center gap-3 mb-4">
+        <span class="text-gray-400 text-sm font-medium">VERDICT</span>
+        <span id="verdict-badge" class="px-3 py-1 rounded-full border text-sm font-medium"></span>
+      </div>
+      <p id="reasoning-text" class="text-gray-300 text-sm leading-relaxed bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4"></p>
+      <div id="similar-section" class="hidden">
+        <p class="text-gray-400 text-xs font-medium mb-2 uppercase tracking-wide">Similar past emails</p>
+        <div id="similar-list" class="space-y-2"></div>
+      </div>
+      <div id="prior-section" class="hidden mt-4">
+        <p class="text-gray-400 text-xs font-medium mb-2 uppercase tracking-wide">Prior triages from this sender</p>
+        <div id="prior-list" class="space-y-2"></div>
+      </div>
+    </div>
+    <p id="error-box" class="mt-4 hidden bg-red-900/50 border border-red-700 text-red-300 text-sm rounded-lg p-3"></p>
+  </div>
+
+  <!-- History View -->
+  <div id="view-history" class="max-w-3xl mx-auto px-6 py-8 hidden">
+    <p class="text-gray-400 text-sm mb-4">Past triages, newest first.</p>
+    <div id="history-list" class="space-y-2"></div>
+    <p id="history-empty" class="text-gray-600 text-sm hidden">No triages yet.</p>
+  </div>
+
+<script>
+  // ── Safe DOM helper — escapes user content before inserting into the DOM ──
+  function esc(str) {
+    const el = document.createElement('span');
+    el.textContent = String(str ?? '');
+    return el.innerHTML; // browser-escaped HTML entities
+  }
+
+  // ── Verdict helpers ───────────────────────────────────────────────────────
+  function verdictClasses(verdict) {
+    const map = {
+      Safe:       'bg-green-900/60 text-green-300 border-green-700',
+      Suspicious: 'bg-yellow-900/60 text-yellow-300 border-yellow-700',
+      Phishing:   'bg-red-900/60 text-red-300 border-red-700',
+    };
+    return map[verdict] || 'bg-gray-800 text-gray-300 border-gray-600';
+  }
+
+  // Builds a triage card using safe DOM methods (no innerHTML with user data)
+  function buildTriageCard(t) {
+    const card = document.createElement('div');
+    card.className = 'bg-gray-800 border border-gray-700 rounded-lg p-3 cursor-pointer hover:border-gray-500 transition-colors';
+
+    const header = document.createElement('div');
+    header.className = 'flex items-center gap-2 flex-wrap';
+
+    const badge = document.createElement('span');
+    badge.className = 'px-2 py-0.5 rounded-full border text-xs font-medium ' + verdictClasses(t.verdict);
+    badge.textContent = t.verdict;
+
+    const domain = document.createElement('span');
+    domain.className = 'text-gray-400 text-xs';
+    domain.textContent = t.sender_domain || 'unknown sender';
+
+    const ts = document.createElement('span');
+    ts.className = 'text-gray-600 text-xs ml-auto';
+    ts.textContent = new Date(t.created_at).toLocaleString();
+
+    header.appendChild(badge);
+    header.appendChild(domain);
+    header.appendChild(ts);
+
+    const preview = document.createElement('p');
+    preview.className = 'text-gray-500 text-xs mt-1.5 truncate';
+    preview.textContent = (t.email_text || '').slice(0, 100) + '…';
+
+    const detail = document.createElement('div');
+    detail.className = 'hidden mt-3 text-gray-300 text-sm leading-relaxed border-t border-gray-700 pt-3';
+    detail.textContent = t.reasoning || '';
+
+    card.appendChild(header);
+    card.appendChild(preview);
+    card.appendChild(detail);
+    card.addEventListener('click', () => detail.classList.toggle('hidden'));
+    return card;
+  }
+
+  // ── Tabs ──────────────────────────────────────────────────────────────────
+  const tabAnalyze  = document.getElementById('tab-analyze');
+  const tabHistory  = document.getElementById('tab-history');
+  const viewAnalyze = document.getElementById('view-analyze');
+  const viewHistory = document.getElementById('view-history');
+
+  function showTab(tab) {
+    const isAnalyze = tab === 'analyze';
+    viewAnalyze.classList.toggle('hidden', !isAnalyze);
+    viewHistory.classList.toggle('hidden', isAnalyze);
+    tabAnalyze.className = 'text-sm px-3 py-1.5 rounded font-medium ' +
+      (isAnalyze ? 'bg-orange-500 text-white' : 'text-gray-400 hover:text-white transition-colors');
+    tabHistory.className = 'text-sm px-3 py-1.5 rounded font-medium ' +
+      (!isAnalyze ? 'bg-orange-500 text-white' : 'text-gray-400 hover:text-white transition-colors');
+    if (!isAnalyze) loadHistory();
+  }
+
+  tabAnalyze.addEventListener('click', () => showTab('analyze'));
+  tabHistory.addEventListener('click', () => showTab('history'));
+
+  // ── Analyze ───────────────────────────────────────────────────────────────
+  const emailInput    = document.getElementById('email-input');
+  const analyzeBtn    = document.getElementById('analyze-btn');
+  const statusText    = document.getElementById('status-text');
+  const resultsEl     = document.getElementById('results');
+  const errorBox      = document.getElementById('error-box');
+  const verdictBadge  = document.getElementById('verdict-badge');
+  const reasoningText = document.getElementById('reasoning-text');
+  const similarSection = document.getElementById('similar-section');
+  const similarList   = document.getElementById('similar-list');
+  const priorSection  = document.getElementById('prior-section');
+  const priorList     = document.getElementById('prior-list');
+
+  analyzeBtn.addEventListener('click', async () => {
+    const emailText = emailInput.value.trim();
+    if (emailText.length < 10) {
+      showError('Please paste at least 10 characters of email text.');
+      return;
+    }
+    setLoading(true);
+    errorBox.classList.add('hidden');
+    resultsEl.classList.add('hidden');
+
+    try {
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emailText }),
+      });
+      const data = await res.json();
+      if (!res.ok) { showError(data.error || 'Analysis failed.'); return; }
+
+      verdictBadge.textContent = data.verdict;
+      verdictBadge.className = 'px-3 py-1 rounded-full border text-sm font-medium ' + verdictClasses(data.verdict);
+      reasoningText.textContent = data.reasoning;
+
+      similarList.replaceChildren();
+      if (data.similarEmails && data.similarEmails.length > 0) {
+        data.similarEmails.forEach((t) => {
+          const row = document.createElement('div');
+          row.className = 'text-xs text-gray-400 bg-gray-800 border border-gray-700 rounded p-2 flex items-center gap-2';
+          const vb = document.createElement('span');
+          vb.className = 'px-1.5 py-0.5 rounded border text-xs ' + verdictClasses(t.verdict);
+          vb.textContent = t.verdict;
+          const pct = document.createElement('span');
+          pct.textContent = (t.score * 100).toFixed(0) + '% match';
+          const dom = document.createElement('span');
+          dom.className = 'text-gray-600';
+          dom.textContent = t.sender_domain || 'unknown';
+          row.appendChild(vb); row.appendChild(pct); row.appendChild(dom);
+          similarList.appendChild(row);
+        });
+        similarSection.classList.remove('hidden');
+      } else {
+        similarSection.classList.add('hidden');
+      }
+
+      priorList.replaceChildren();
+      if (data.priorHistory && data.priorHistory.length > 0) {
+        data.priorHistory.forEach((t) => {
+          const row = document.createElement('div');
+          row.className = 'text-xs text-gray-400 bg-gray-800 border border-gray-700 rounded p-2 flex items-center gap-2';
+          const vb = document.createElement('span');
+          vb.className = 'px-1.5 py-0.5 rounded border ' + verdictClasses(t.verdict);
+          vb.textContent = t.verdict;
+          const dt = document.createElement('span');
+          dt.className = 'text-gray-600';
+          dt.textContent = new Date(t.created_at).toLocaleDateString();
+          row.appendChild(vb); row.appendChild(dt);
+          priorList.appendChild(row);
+        });
+        priorSection.classList.remove('hidden');
+      } else {
+        priorSection.classList.add('hidden');
+      }
+
+      resultsEl.classList.remove('hidden');
+    } catch {
+      showError('Network error. Is the Worker running?');
+    } finally {
+      setLoading(false);
+    }
+  });
+
+  function setLoading(on) {
+    analyzeBtn.disabled = on;
+    statusText.classList.toggle('hidden', !on);
+  }
+
+  function showError(msg) {
+    errorBox.textContent = msg;
+    errorBox.classList.remove('hidden');
+  }
+
+  // ── History ───────────────────────────────────────────────────────────────
+  async function loadHistory() {
+    const historyList  = document.getElementById('history-list');
+    const historyEmpty = document.getElementById('history-empty');
+    historyList.replaceChildren();
+    const loading = document.createElement('p');
+    loading.className = 'text-gray-600 text-sm';
+    loading.textContent = 'Loading...';
+    historyList.appendChild(loading);
+
+    try {
+      const res = await fetch('/api/history');
+      const data = await res.json();
+      historyList.replaceChildren();
+      if (!data.length) {
+        historyEmpty.classList.remove('hidden');
+      } else {
+        historyEmpty.classList.add('hidden');
+        data.forEach((t) => historyList.appendChild(buildTriageCard(t)));
+      }
+    } catch {
+      historyList.replaceChildren();
+      const err = document.createElement('p');
+      err.className = 'text-red-400 text-sm';
+      err.textContent = 'Failed to load history.';
+      historyList.appendChild(err);
+    }
+  }
+
+  // ── Voice input ───────────────────────────────────────────────────────────
+  const micBtn = document.getElementById('mic-btn');
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SR) {
+    micBtn.style.display = 'none';
+  } else {
+    const recognition = new SR();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    micBtn.addEventListener('click', () => {
+      recognition.start();
+      micBtn.classList.add('recording', 'text-orange-400');
+    });
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      emailInput.value += (emailInput.value ? ' ' : '') + transcript;
+      micBtn.classList.remove('recording', 'text-orange-400');
+    };
+    recognition.onerror = () => {
+      micBtn.classList.remove('recording', 'text-orange-400');
+    };
+  }
+</script>
+</body>
+</html>
