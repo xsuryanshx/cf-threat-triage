@@ -9,7 +9,7 @@ directory = "./public"
 [[d1_databases]]
 binding = "DB"
 database_name = "threat-triage-db"
-database_id = "PLACEHOLDER"
+database_id = "f75d5c10-6dd8-46a7-98d8-d2d178c87c6e"
 
 [[vectorize]]
 binding = "VECTORIZE"
