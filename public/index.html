@@ -3,165 +3,337 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ThreatTriage</title>
+  <title>ThreatTriage — AI Phishing Analyzer</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: { 50:'#fff7ed', 100:'#ffedd5', 200:'#fed7aa', 300:'#fdba74', 400:'#fb923c', 500:'#f97316', 600:'#ea580c', 700:'#c2410c' },
+            surface: { 800:'#1a1a2e', 900:'#0f0f1a', 950:'#080812' },
+          },
+          fontFamily: { display: ['Inter', 'system-ui', 'sans-serif'], mono: ['JetBrains Mono', 'monospace'] },
+        }
+      }
+    }
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
-    .recording { animation: pulse 1s cubic-bezier(0.4,0,0.6,1) infinite; }
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.5} }
+    body { font-family: 'Inter', system-ui, sans-serif; }
+    code, .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+    /* Scanning animation */
+    @keyframes scan { 0%{transform:translateY(-100%)} 100%{transform:translateY(100%)} }
+    .scan-line { animation: scan 2s ease-in-out infinite; }
+
+    /* Gauge animation */
+    @keyframes gauge-fill { from{stroke-dashoffset:251.2} }
+    .gauge-ring { animation: gauge-fill 1.2s ease-out forwards; }
+
+    /* Fade in */
+    @keyframes fade-in { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+    .fade-in { animation: fade-in 0.4s ease-out forwards; }
+    .fade-in-delay { animation: fade-in 0.4s ease-out 0.15s forwards; opacity: 0; }
+    .fade-in-delay-2 { animation: fade-in 0.4s ease-out 0.3s forwards; opacity: 0; }
+
+    /* Pulse dot */
+    @keyframes pulse-dot { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    .pulse-dot { animation: pulse-dot 1.5s ease-in-out infinite; }
+
+    /* Drop zone */
+    .drop-active { border-color: #f97316 !important; background: rgba(249,115,22,0.05) !important; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #374151; border-radius: 3px; }
+
+    /* Bar chart */
+    .bar-fill { transition: width 0.8s ease-out; }
   </style>
 </head>
-<body class="bg-gray-900 text-gray-100 min-h-screen font-mono">
+<body class="bg-surface-950 text-gray-100 min-h-screen">
 
-  <!-- Nav -->
-  <nav class="border-b border-gray-700 px-6 py-4 flex items-center gap-6">
-    <span class="text-orange-400 font-bold text-lg tracking-tight">ThreatTriage</span>
-    <button id="tab-analyze" class="text-sm px-3 py-1.5 rounded bg-orange-500 text-white font-medium">Analyze</button>
-    <button id="tab-history" class="text-sm px-3 py-1.5 rounded text-gray-400 hover:text-white transition-colors">History</button>
+  <!-- ── Nav ─────────────────────────────────────────────────────────── -->
+  <nav class="border-b border-gray-800/80 px-6 py-3.5 flex items-center gap-2 bg-surface-900/60 backdrop-blur-sm sticky top-0 z-50">
+    <div class="flex items-center gap-2.5 mr-6">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="text-brand-500">
+        <path d="M12 2L3 7v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-9-5z"/>
+        <path d="M9 12l2 2 4-4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span class="text-white font-semibold text-lg tracking-tight">Threat<span class="text-brand-500">Triage</span></span>
+    </div>
+    <div class="flex gap-1 bg-surface-800 rounded-lg p-1">
+      <button id="tab-analyze" class="tab-btn text-sm px-4 py-1.5 rounded-md font-medium transition-all bg-brand-500/10 text-brand-400">Analyze</button>
+      <button id="tab-dashboard" class="tab-btn text-sm px-4 py-1.5 rounded-md font-medium transition-all text-gray-500 hover:text-gray-300">Dashboard</button>
+      <button id="tab-history" class="tab-btn text-sm px-4 py-1.5 rounded-md font-medium transition-all text-gray-500 hover:text-gray-300">History</button>
+    </div>
+    <div class="ml-auto flex items-center gap-2 text-xs text-gray-600">
+      <span class="inline-block w-1.5 h-1.5 rounded-full bg-green-500 pulse-dot"></span>
+      Workers AI
+    </div>
   </nav>
 
-  <!-- Analyze View -->
-  <div id="view-analyze" class="max-w-3xl mx-auto px-6 py-8">
-    <p class="text-gray-400 text-sm mb-4">Paste a suspicious email below to analyze it for phishing indicators.</p>
-    <div class="relative">
+  <!-- ── Analyze View ────────────────────────────────────────────────── -->
+  <div id="view-analyze" class="max-w-4xl mx-auto px-6 py-10">
+    <div class="mb-8">
+      <h1 class="text-2xl font-semibold text-white mb-2">Email Threat Analysis</h1>
+      <p class="text-gray-500 text-sm">Paste or drag an email to analyze it for phishing indicators using AI.</p>
+    </div>
+
+    <!-- Input area -->
+    <div id="drop-zone" class="relative border-2 border-dashed border-gray-700/60 rounded-xl bg-surface-900/40 transition-all hover:border-gray-600/60">
       <textarea
         id="email-input"
-        rows="10"
-        class="w-full bg-gray-800 border border-gray-700 rounded-lg p-4 pr-14 text-sm text-gray-100 resize-y focus:outline-none focus:border-orange-500 placeholder-gray-600"
-        placeholder="Paste email here (headers + body)..."
+        rows="8"
+        class="w-full bg-transparent p-5 text-sm text-gray-200 resize-y focus:outline-none placeholder-gray-600 font-mono leading-relaxed"
+        placeholder="From: sender@example.com&#10;Subject: Account verification required&#10;&#10;Dear user,&#10;Please verify your account by clicking the link below..."
       ></textarea>
-      <button
-        id="mic-btn"
-        class="absolute top-3 right-3 p-2 rounded-full bg-gray-700 hover:bg-gray-600 text-gray-300 hover:text-orange-400 transition-colors"
-        title="Voice input"
-      >mic</button>
+      <div class="absolute bottom-3 right-3 flex items-center gap-2">
+        <span class="text-[11px] text-gray-600">or drop a .eml file</span>
+      </div>
     </div>
-    <div class="mt-4 flex items-center gap-4">
+
+    <div class="mt-5 flex items-center gap-4">
       <button
         id="analyze-btn"
-        class="px-6 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-      >Analyze</button>
-      <span id="status-text" class="text-gray-500 text-sm hidden">Analyzing...</span>
+        class="group px-7 py-2.5 bg-brand-500 hover:bg-brand-600 text-white rounded-lg font-medium transition-all disabled:opacity-30 disabled:cursor-not-allowed flex items-center gap-2.5 shadow-lg shadow-brand-500/10"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="group-hover:rotate-12 transition-transform">
+          <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+        </svg>
+        Analyze Threat
+      </button>
+      <button id="clear-btn" class="text-sm text-gray-600 hover:text-gray-400 transition-colors hidden">Clear</button>
+    </div>
+
+    <!-- Scanning state -->
+    <div id="scanning" class="mt-10 hidden">
+      <div class="relative overflow-hidden rounded-xl bg-surface-900 border border-gray-800 p-8">
+        <div class="absolute inset-0 overflow-hidden">
+          <div class="scan-line absolute inset-x-0 h-px bg-gradient-to-r from-transparent via-brand-500 to-transparent"></div>
+        </div>
+        <div class="flex items-center gap-4">
+          <div class="w-10 h-10 rounded-full border-2 border-brand-500/30 border-t-brand-500 animate-spin"></div>
+          <div>
+            <p class="text-white font-medium">Analyzing email...</p>
+            <p class="text-gray-500 text-sm mt-0.5">Running AI threat detection</p>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Results -->
-    <div id="results" class="mt-8 hidden">
-      <div class="flex items-center gap-3 mb-4">
-        <span class="text-gray-400 text-sm font-medium">VERDICT</span>
-        <span id="verdict-badge" class="px-3 py-1 rounded-full border text-sm font-medium"></span>
+    <div id="results" class="mt-10 hidden space-y-6">
+      <!-- Top row: gauge + verdict -->
+      <div class="fade-in grid grid-cols-1 md:grid-cols-[200px_1fr] gap-6">
+        <!-- Threat gauge -->
+        <div class="flex flex-col items-center justify-center bg-surface-900 border border-gray-800 rounded-xl p-6">
+          <div class="relative w-32 h-32">
+            <svg viewBox="0 0 100 100" class="w-full h-full -rotate-90">
+              <circle cx="50" cy="50" r="40" fill="none" stroke="#1f2937" stroke-width="8"/>
+              <circle id="gauge-circle" cx="50" cy="50" r="40" fill="none" stroke-width="8" stroke-linecap="round" class="gauge-ring"
+                stroke-dasharray="251.2" stroke-dashoffset="251.2"/>
+            </svg>
+            <div class="absolute inset-0 flex flex-col items-center justify-center">
+              <span id="gauge-number" class="text-3xl font-bold text-white">0</span>
+              <span class="text-[10px] text-gray-500 uppercase tracking-widest mt-0.5">confidence</span>
+            </div>
+          </div>
+          <span id="verdict-badge" class="mt-3 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide"></span>
+        </div>
+
+        <!-- Reasoning -->
+        <div class="bg-surface-900 border border-gray-800 rounded-xl p-6">
+          <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3">Analysis</h3>
+          <p id="reasoning-text" class="text-gray-300 text-sm leading-relaxed"></p>
+          <div id="sender-info" class="mt-4 pt-4 border-t border-gray-800 flex items-center gap-3 hidden">
+            <span class="text-[10px] uppercase tracking-wide text-gray-600">Sender</span>
+            <span id="sender-domain" class="text-sm text-gray-400 font-mono"></span>
+          </div>
+        </div>
       </div>
-      <p id="reasoning-text" class="text-gray-300 text-sm leading-relaxed bg-gray-800 border border-gray-700 rounded-lg p-4 mb-4"></p>
-      <div id="similar-section" class="hidden">
-        <p class="text-gray-400 text-xs font-medium mb-2 uppercase tracking-wide">Similar past emails</p>
+
+      <!-- Indicators -->
+      <div id="indicators-section" class="fade-in-delay hidden">
+        <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3">Threat Indicators</h3>
+        <div id="indicators-list" class="grid grid-cols-1 md:grid-cols-2 gap-2"></div>
+      </div>
+
+      <!-- URLs found -->
+      <div id="urls-section" class="fade-in-delay hidden">
+        <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3">URLs Detected</h3>
+        <div id="urls-list" class="space-y-1.5"></div>
+      </div>
+
+      <!-- Similar emails -->
+      <div id="similar-section" class="fade-in-delay-2 hidden">
+        <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3">Similar Past Emails</h3>
         <div id="similar-list" class="space-y-2"></div>
       </div>
-      <div id="prior-section" class="hidden mt-4">
-        <p class="text-gray-400 text-xs font-medium mb-2 uppercase tracking-wide">Prior triages from this sender</p>
+
+      <!-- Prior sender history -->
+      <div id="prior-section" class="fade-in-delay-2 hidden">
+        <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-3">Sender History</h3>
         <div id="prior-list" class="space-y-2"></div>
       </div>
     </div>
-    <p id="error-box" class="mt-4 hidden bg-red-900/50 border border-red-700 text-red-300 text-sm rounded-lg p-3"></p>
+
+    <p id="error-box" class="mt-6 hidden bg-red-950/60 border border-red-900/50 text-red-400 text-sm rounded-xl p-4"></p>
   </div>
 
-  <!-- History View -->
-  <div id="view-history" class="max-w-3xl mx-auto px-6 py-8 hidden">
-    <p class="text-gray-400 text-sm mb-4">Past triages, newest first.</p>
+  <!-- ── Dashboard View ──────────────────────────────────────────────── -->
+  <div id="view-dashboard" class="max-w-4xl mx-auto px-6 py-10 hidden">
+    <div class="mb-8">
+      <h1 class="text-2xl font-semibold text-white mb-2">Threat Dashboard</h1>
+      <p class="text-gray-500 text-sm">Overview of all analyzed emails and threat distribution.</p>
+    </div>
+
+    <!-- Stat cards -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+      <div class="bg-surface-900 border border-gray-800 rounded-xl p-5">
+        <p class="text-[11px] uppercase tracking-wide text-gray-600 mb-1">Total Scanned</p>
+        <p id="stat-total" class="text-2xl font-bold text-white">—</p>
+      </div>
+      <div class="bg-surface-900 border border-gray-800 rounded-xl p-5">
+        <p class="text-[11px] uppercase tracking-wide text-green-600 mb-1">Safe</p>
+        <p id="stat-safe" class="text-2xl font-bold text-green-400">—</p>
+      </div>
+      <div class="bg-surface-900 border border-gray-800 rounded-xl p-5">
+        <p class="text-[11px] uppercase tracking-wide text-yellow-600 mb-1">Suspicious</p>
+        <p id="stat-suspicious" class="text-2xl font-bold text-yellow-400">—</p>
+      </div>
+      <div class="bg-surface-900 border border-gray-800 rounded-xl p-5">
+        <p class="text-[11px] uppercase tracking-wide text-red-600 mb-1">Phishing</p>
+        <p id="stat-phishing" class="text-2xl font-bold text-red-400">—</p>
+      </div>
+    </div>
+
+    <!-- Verdict distribution bar -->
+    <div class="bg-surface-900 border border-gray-800 rounded-xl p-6 mb-6">
+      <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-4">Verdict Distribution</h3>
+      <div class="space-y-3">
+        <div class="flex items-center gap-3">
+          <span class="text-xs text-gray-500 w-20">Safe</span>
+          <div class="flex-1 h-5 bg-gray-800 rounded-full overflow-hidden"><div id="bar-safe" class="bar-fill h-full bg-green-500/70 rounded-full" style="width:0%"></div></div>
+          <span id="bar-safe-pct" class="text-xs text-gray-500 w-10 text-right">0%</span>
+        </div>
+        <div class="flex items-center gap-3">
+          <span class="text-xs text-gray-500 w-20">Suspicious</span>
+          <div class="flex-1 h-5 bg-gray-800 rounded-full overflow-hidden"><div id="bar-suspicious" class="bar-fill h-full bg-yellow-500/70 rounded-full" style="width:0%"></div></div>
+          <span id="bar-suspicious-pct" class="text-xs text-gray-500 w-10 text-right">0%</span>
+        </div>
+        <div class="flex items-center gap-3">
+          <span class="text-xs text-gray-500 w-20">Phishing</span>
+          <div class="flex-1 h-5 bg-gray-800 rounded-full overflow-hidden"><div id="bar-phishing" class="bar-fill h-full bg-red-500/70 rounded-full" style="width:0%"></div></div>
+          <span id="bar-phishing-pct" class="text-xs text-gray-500 w-10 text-right">0%</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Top threat domains -->
+    <div class="bg-surface-900 border border-gray-800 rounded-xl p-6">
+      <h3 class="text-xs font-semibold uppercase tracking-wide text-gray-500 mb-4">Top Sender Domains</h3>
+      <div id="domains-list" class="space-y-2"></div>
+      <p id="domains-empty" class="text-gray-600 text-sm hidden">No data yet.</p>
+    </div>
+  </div>
+
+  <!-- ── History View ────────────────────────────────────────────────── -->
+  <div id="view-history" class="max-w-4xl mx-auto px-6 py-10 hidden">
+    <div class="mb-8 flex items-center justify-between">
+      <div>
+        <h1 class="text-2xl font-semibold text-white mb-2">Analysis History</h1>
+        <p class="text-gray-500 text-sm">All past triages, newest first.</p>
+      </div>
+      <div class="flex gap-1 bg-surface-800 rounded-lg p-1">
+        <button data-filter="all" class="filter-btn text-xs px-3 py-1 rounded-md bg-gray-700 text-gray-200">All</button>
+        <button data-filter="Phishing" class="filter-btn text-xs px-3 py-1 rounded-md text-gray-500 hover:text-gray-300">Phishing</button>
+        <button data-filter="Suspicious" class="filter-btn text-xs px-3 py-1 rounded-md text-gray-500 hover:text-gray-300">Suspicious</button>
+        <button data-filter="Safe" class="filter-btn text-xs px-3 py-1 rounded-md text-gray-500 hover:text-gray-300">Safe</button>
+      </div>
+    </div>
     <div id="history-list" class="space-y-2"></div>
-    <p id="history-empty" class="text-gray-600 text-sm hidden">No triages yet.</p>
+    <p id="history-empty" class="text-gray-600 text-sm hidden">No triages yet. Analyze an email to get started.</p>
   </div>
 
 <script>
-  // ── Verdict helpers ───────────────────────────────────────────────────────
-  function verdictClasses(verdict) {
-    const map = {
-      Safe:       'bg-green-900/60 text-green-300 border-green-700',
-      Suspicious: 'bg-yellow-900/60 text-yellow-300 border-yellow-700',
-      Phishing:   'bg-red-900/60 text-red-300 border-red-700',
-    };
-    return map[verdict] || 'bg-gray-800 text-gray-300 border-gray-600';
-  }
+  // ── Severity / Verdict colors ──────────────────────────────────────────
+  const VERDICT_COLORS = {
+    Safe:       { bg:'bg-green-950/60', text:'text-green-400', border:'border-green-800/60', ring:'#22c55e' },
+    Suspicious: { bg:'bg-yellow-950/60', text:'text-yellow-400', border:'border-yellow-800/60', ring:'#eab308' },
+    Phishing:   { bg:'bg-red-950/60', text:'text-red-400', border:'border-red-800/60', ring:'#ef4444' },
+  };
+  const SEVERITY_COLORS = {
+    critical: { bg:'bg-red-950/60', text:'text-red-400', border:'border-red-900/40', icon:'🔴' },
+    high:     { bg:'bg-orange-950/60', text:'text-orange-400', border:'border-orange-900/40', icon:'🟠' },
+    medium:   { bg:'bg-yellow-950/60', text:'text-yellow-400', border:'border-yellow-900/40', icon:'🟡' },
+    low:      { bg:'bg-blue-950/60', text:'text-blue-400', border:'border-blue-900/40', icon:'🔵' },
+  };
 
-  // Builds a triage card using safe DOM methods (no innerHTML with user data)
-  function buildTriageCard(t) {
-    const card = document.createElement('div');
-    card.className = 'bg-gray-800 border border-gray-700 rounded-lg p-3 cursor-pointer hover:border-gray-500 transition-colors';
+  // ── Tab management ──────────────────────────────────────────────────
+  const tabs = { analyze: 'view-analyze', dashboard: 'view-dashboard', history: 'view-history' };
+  let allTriages = [];
 
-    const header = document.createElement('div');
-    header.className = 'flex items-center gap-2 flex-wrap';
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = btn.id.replace('tab-', '');
+      Object.entries(tabs).forEach(([k, v]) => {
+        document.getElementById(v).classList.toggle('hidden', k !== tab);
+        document.getElementById('tab-' + k).className = 'tab-btn text-sm px-4 py-1.5 rounded-md font-medium transition-all ' +
+          (k === tab ? 'bg-brand-500/10 text-brand-400' : 'text-gray-500 hover:text-gray-300');
+      });
+      if (tab === 'dashboard') loadDashboard();
+      if (tab === 'history') loadHistory();
+    });
+  });
 
-    const badge = document.createElement('span');
-    badge.className = 'px-2 py-0.5 rounded-full border text-xs font-medium ' + verdictClasses(t.verdict);
-    badge.textContent = t.verdict;
+  // ── Drop zone & file handling ──────────────────────────────────────
+  const dropZone = document.getElementById('drop-zone');
+  const emailInput = document.getElementById('email-input');
 
-    const domain = document.createElement('span');
-    domain.className = 'text-gray-400 text-xs';
-    domain.textContent = t.sender_domain || 'unknown sender';
+  ['dragenter','dragover'].forEach(e => dropZone.addEventListener(e, (ev) => {
+    ev.preventDefault(); dropZone.classList.add('drop-active');
+  }));
+  ['dragleave','drop'].forEach(e => dropZone.addEventListener(e, () => dropZone.classList.remove('drop-active')));
+  dropZone.addEventListener('drop', (ev) => {
+    ev.preventDefault();
+    const file = ev.dataTransfer.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (e) => { emailInput.value = e.target.result; clearBtn.classList.remove('hidden'); };
+      reader.readAsText(file);
+    }
+  });
 
-    const ts = document.createElement('span');
-    ts.className = 'text-gray-600 text-xs ml-auto';
-    ts.textContent = new Date(t.created_at).toLocaleString();
+  // ── Analyze ─────────────────────────────────────────────────────────
+  const analyzeBtn = document.getElementById('analyze-btn');
+  const clearBtn = document.getElementById('clear-btn');
+  const scanning = document.getElementById('scanning');
+  const resultsEl = document.getElementById('results');
+  const errorBox = document.getElementById('error-box');
 
-    header.appendChild(badge);
-    header.appendChild(domain);
-    header.appendChild(ts);
+  clearBtn.addEventListener('click', () => {
+    emailInput.value = '';
+    resultsEl.classList.add('hidden');
+    errorBox.classList.add('hidden');
+    clearBtn.classList.add('hidden');
+  });
 
-    const preview = document.createElement('p');
-    preview.className = 'text-gray-500 text-xs mt-1.5 truncate';
-    const emailTxt = t.email_text || '';
-    preview.textContent = emailTxt.length > 100 ? emailTxt.slice(0, 100) + '…' : emailTxt;
-
-    const detail = document.createElement('div');
-    detail.className = 'hidden mt-3 text-gray-300 text-sm leading-relaxed border-t border-gray-700 pt-3';
-    detail.textContent = t.reasoning || '';
-
-    card.appendChild(header);
-    card.appendChild(preview);
-    card.appendChild(detail);
-    card.addEventListener('click', () => detail.classList.toggle('hidden'));
-    return card;
-  }
-
-  // ── Tabs ──────────────────────────────────────────────────────────────────
-  const tabAnalyze  = document.getElementById('tab-analyze');
-  const tabHistory  = document.getElementById('tab-history');
-  const viewAnalyze = document.getElementById('view-analyze');
-  const viewHistory = document.getElementById('view-history');
-
-  function showTab(tab) {
-    const isAnalyze = tab === 'analyze';
-    viewAnalyze.classList.toggle('hidden', !isAnalyze);
-    viewHistory.classList.toggle('hidden', isAnalyze);
-    tabAnalyze.className = 'text-sm px-3 py-1.5 rounded font-medium ' +
-      (isAnalyze ? 'bg-orange-500 text-white' : 'text-gray-400 hover:text-white transition-colors');
-    tabHistory.className = 'text-sm px-3 py-1.5 rounded font-medium ' +
-      (!isAnalyze ? 'bg-orange-500 text-white' : 'text-gray-400 hover:text-white transition-colors');
-    if (!isAnalyze) loadHistory();
-  }
-
-  tabAnalyze.addEventListener('click', () => showTab('analyze'));
-  tabHistory.addEventListener('click', () => showTab('history'));
-
-  // ── Analyze ───────────────────────────────────────────────────────────────
-  const emailInput    = document.getElementById('email-input');
-  const analyzeBtn    = document.getElementById('analyze-btn');
-  const statusText    = document.getElementById('status-text');
-  const resultsEl     = document.getElementById('results');
-  const errorBox      = document.getElementById('error-box');
-  const verdictBadge  = document.getElementById('verdict-badge');
-  const reasoningText = document.getElementById('reasoning-text');
-  const similarSection = document.getElementById('similar-section');
-  const similarList   = document.getElementById('similar-list');
-  const priorSection  = document.getElementById('prior-section');
-  const priorList     = document.getElementById('prior-list');
+  emailInput.addEventListener('input', () => {
+    clearBtn.classList.toggle('hidden', !emailInput.value.trim());
+  });
 
   analyzeBtn.addEventListener('click', async () => {
     const emailText = emailInput.value.trim();
-    if (emailText.length < 10) {
-      showError('Please paste at least 10 characters of email text.');
-      return;
-    }
-    setLoading(true);
+    if (emailText.length < 10) { showError('Please paste at least 10 characters of email text.'); return; }
+
+    analyzeBtn.disabled = true;
     errorBox.classList.add('hidden');
     resultsEl.classList.add('hidden');
+    scanning.classList.remove('hidden');
 
     try {
       const res = await fetch('/api/analyze', {
@@ -171,90 +343,242 @@
       });
       const data = await res.json();
       if (!res.ok) { showError(data.error || 'Analysis failed.'); return; }
-
-      verdictBadge.textContent = data.verdict;
-      verdictBadge.className = 'px-3 py-1 rounded-full border text-sm font-medium ' + verdictClasses(data.verdict);
-      reasoningText.textContent = data.reasoning;
-
-      similarList.replaceChildren();
-      if (data.similarEmails && data.similarEmails.length > 0) {
-        data.similarEmails.forEach((t) => {
-          const row = document.createElement('div');
-          row.className = 'text-xs text-gray-400 bg-gray-800 border border-gray-700 rounded p-2 flex items-center gap-2';
-          const vb = document.createElement('span');
-          vb.className = 'px-1.5 py-0.5 rounded border text-xs ' + verdictClasses(t.verdict);
-          vb.textContent = t.verdict;
-          const pct = document.createElement('span');
-          pct.textContent = (t.score * 100).toFixed(0) + '% match';
-          const dom = document.createElement('span');
-          dom.className = 'text-gray-600';
-          dom.textContent = t.sender_domain || 'unknown';
-          row.appendChild(vb); row.appendChild(pct); row.appendChild(dom);
-          similarList.appendChild(row);
-        });
-        similarSection.classList.remove('hidden');
-      } else {
-        similarSection.classList.add('hidden');
-      }
-
-      priorList.replaceChildren();
-      if (data.priorHistory && data.priorHistory.length > 0) {
-        data.priorHistory.forEach((t) => {
-          const row = document.createElement('div');
-          row.className = 'text-xs text-gray-400 bg-gray-800 border border-gray-700 rounded p-2 flex items-center gap-2';
-          const vb = document.createElement('span');
-          vb.className = 'px-1.5 py-0.5 rounded border ' + verdictClasses(t.verdict);
-          vb.textContent = t.verdict;
-          const dt = document.createElement('span');
-          dt.className = 'text-gray-600';
-          dt.textContent = new Date(t.created_at).toLocaleDateString();
-          row.appendChild(vb); row.appendChild(dt);
-          priorList.appendChild(row);
-        });
-        priorSection.classList.remove('hidden');
-      } else {
-        priorSection.classList.add('hidden');
-      }
-
-      resultsEl.classList.remove('hidden');
+      renderResults(data);
     } catch {
       showError('Network error. Is the Worker running?');
     } finally {
-      setLoading(false);
+      analyzeBtn.disabled = false;
+      scanning.classList.add('hidden');
     }
   });
-
-  function setLoading(on) {
-    analyzeBtn.disabled = on;
-    statusText.classList.toggle('hidden', !on);
-  }
 
   function showError(msg) {
     errorBox.textContent = msg;
     errorBox.classList.remove('hidden');
   }
 
-  // ── History ───────────────────────────────────────────────────────────────
+  // ── Render results ──────────────────────────────────────────────────
+  function renderResults(data) {
+    const vc = VERDICT_COLORS[data.verdict] || VERDICT_COLORS.Safe;
+    const confidence = data.confidence ?? 50;
+
+    // Gauge
+    const gaugeCircle = document.getElementById('gauge-circle');
+    const offset = 251.2 - (251.2 * confidence / 100);
+    gaugeCircle.style.stroke = vc.ring;
+    gaugeCircle.style.strokeDashoffset = offset;
+    // Re-trigger animation
+    gaugeCircle.classList.remove('gauge-ring');
+    void gaugeCircle.offsetWidth;
+    gaugeCircle.classList.add('gauge-ring');
+
+    const gaugeNum = document.getElementById('gauge-number');
+    gaugeNum.textContent = confidence;
+    gaugeNum.style.color = vc.ring;
+
+    // Verdict badge
+    const badge = document.getElementById('verdict-badge');
+    badge.textContent = data.verdict;
+    badge.className = `mt-3 px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide border ${vc.bg} ${vc.text} ${vc.border}`;
+
+    // Reasoning
+    document.getElementById('reasoning-text').textContent = data.reasoning;
+
+    // Sender
+    const senderInfo = document.getElementById('sender-info');
+    if (data.senderDomain) {
+      document.getElementById('sender-domain').textContent = data.senderDomain;
+      senderInfo.classList.remove('hidden');
+    } else {
+      senderInfo.classList.add('hidden');
+    }
+
+    // Indicators
+    const indicatorsSection = document.getElementById('indicators-section');
+    const indicatorsList = document.getElementById('indicators-list');
+    indicatorsList.replaceChildren();
+    const indicators = data.indicators || [];
+    if (indicators.length > 0) {
+      indicators.forEach(ind => {
+        const sc = SEVERITY_COLORS[ind.severity] || SEVERITY_COLORS.medium;
+        const card = document.createElement('div');
+        card.className = `${sc.bg} border ${sc.border} rounded-lg p-3 flex items-start gap-2.5`;
+        const icon = document.createElement('span');
+        icon.textContent = sc.icon;
+        icon.className = 'text-sm mt-0.5 flex-shrink-0';
+        const content = document.createElement('div');
+        const typeEl = document.createElement('p');
+        typeEl.className = `text-xs font-semibold ${sc.text} uppercase tracking-wide`;
+        typeEl.textContent = ind.type.replace(/_/g, ' ');
+        const detailEl = document.createElement('p');
+        detailEl.className = 'text-xs text-gray-400 mt-0.5 leading-relaxed';
+        detailEl.textContent = ind.detail;
+        content.appendChild(typeEl);
+        content.appendChild(detailEl);
+        card.appendChild(icon);
+        card.appendChild(content);
+        indicatorsList.appendChild(card);
+      });
+      indicatorsSection.classList.remove('hidden');
+    } else {
+      indicatorsSection.classList.add('hidden');
+    }
+
+    // URLs
+    const urlsSection = document.getElementById('urls-section');
+    const urlsList = document.getElementById('urls-list');
+    urlsList.replaceChildren();
+    const urls = data.urls || [];
+    if (urls.length > 0) {
+      urls.forEach(u => {
+        const row = document.createElement('div');
+        row.className = 'flex items-center gap-2 bg-surface-900 border border-gray-800 rounded-lg px-3 py-2';
+        const dot = document.createElement('span');
+        dot.className = `w-2 h-2 rounded-full flex-shrink-0 ${u.suspicious ? 'bg-red-500' : 'bg-green-500'}`;
+        const urlText = document.createElement('span');
+        urlText.className = 'text-xs font-mono text-gray-400 truncate';
+        urlText.textContent = u.url;
+        row.appendChild(dot);
+        row.appendChild(urlText);
+        if (u.suspicious && u.reason) {
+          const reason = document.createElement('span');
+          reason.className = 'text-[10px] text-red-400 ml-auto flex-shrink-0';
+          reason.textContent = u.reason;
+          row.appendChild(reason);
+        }
+        urlsList.appendChild(row);
+      });
+      urlsSection.classList.remove('hidden');
+    } else {
+      urlsSection.classList.add('hidden');
+    }
+
+    // Similar emails
+    const similarSection = document.getElementById('similar-section');
+    const similarList = document.getElementById('similar-list');
+    similarList.replaceChildren();
+    if (data.similarEmails?.length > 0) {
+      data.similarEmails.forEach(t => renderMiniCard(similarList, t, `${(t.score * 100).toFixed(0)}% match`));
+      similarSection.classList.remove('hidden');
+    } else { similarSection.classList.add('hidden'); }
+
+    // Prior history
+    const priorSection = document.getElementById('prior-section');
+    const priorList = document.getElementById('prior-list');
+    priorList.replaceChildren();
+    if (data.priorHistory?.length > 0) {
+      data.priorHistory.forEach(t => renderMiniCard(priorList, t, new Date(t.created_at).toLocaleDateString()));
+      priorSection.classList.remove('hidden');
+    } else { priorSection.classList.add('hidden'); }
+
+    resultsEl.classList.remove('hidden');
+    clearBtn.classList.remove('hidden');
+  }
+
+  function renderMiniCard(container, t, subtitle) {
+    const vc = VERDICT_COLORS[t.verdict] || VERDICT_COLORS.Safe;
+    const row = document.createElement('div');
+    row.className = `bg-surface-900 border border-gray-800 rounded-lg px-3 py-2.5 flex items-center gap-2.5`;
+    const badge = document.createElement('span');
+    badge.className = `px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase border ${vc.bg} ${vc.text} ${vc.border}`;
+    badge.textContent = t.verdict;
+    const sub = document.createElement('span');
+    sub.className = 'text-xs text-gray-500';
+    sub.textContent = subtitle;
+    const domain = document.createElement('span');
+    domain.className = 'text-xs text-gray-600 ml-auto font-mono';
+    domain.textContent = t.sender_domain || '';
+    row.appendChild(badge);
+    row.appendChild(sub);
+    row.appendChild(domain);
+    container.appendChild(row);
+  }
+
+  // ── Dashboard ───────────────────────────────────────────────────────
+  async function loadDashboard() {
+    try {
+      const res = await fetch('/api/stats');
+      if (!res.ok) return;
+      const stats = await res.json();
+
+      document.getElementById('stat-total').textContent = stats.total;
+      document.getElementById('stat-safe').textContent = stats.safe;
+      document.getElementById('stat-suspicious').textContent = stats.suspicious;
+      document.getElementById('stat-phishing').textContent = stats.phishing;
+
+      const total = stats.total || 1;
+      const safePct = ((stats.safe / total) * 100).toFixed(0);
+      const suspPct = ((stats.suspicious / total) * 100).toFixed(0);
+      const phishPct = ((stats.phishing / total) * 100).toFixed(0);
+
+      // Animate bars after a tick
+      requestAnimationFrame(() => {
+        document.getElementById('bar-safe').style.width = safePct + '%';
+        document.getElementById('bar-suspicious').style.width = suspPct + '%';
+        document.getElementById('bar-phishing').style.width = phishPct + '%';
+      });
+      document.getElementById('bar-safe-pct').textContent = safePct + '%';
+      document.getElementById('bar-suspicious-pct').textContent = suspPct + '%';
+      document.getElementById('bar-phishing-pct').textContent = phishPct + '%';
+
+      // Top domains
+      const domainsList = document.getElementById('domains-list');
+      const domainsEmpty = document.getElementById('domains-empty');
+      domainsList.replaceChildren();
+      if (stats.topDomains.length === 0) {
+        domainsEmpty.classList.remove('hidden');
+      } else {
+        domainsEmpty.classList.add('hidden');
+        stats.topDomains.forEach(d => {
+          const row = document.createElement('div');
+          row.className = 'flex items-center gap-3 bg-surface-800/50 rounded-lg px-4 py-2.5';
+          const domain = document.createElement('span');
+          domain.className = 'text-sm text-gray-300 font-mono';
+          domain.textContent = d.domain;
+          const count = document.createElement('span');
+          count.className = 'text-xs text-gray-600 ml-auto';
+          count.textContent = `${d.count} scanned`;
+          const phish = document.createElement('span');
+          phish.className = d.phishing_count > 0 ? 'text-xs text-red-400' : 'text-xs text-gray-600';
+          phish.textContent = `${d.phishing_count} phishing`;
+          row.appendChild(domain);
+          row.appendChild(count);
+          row.appendChild(phish);
+          domainsList.appendChild(row);
+        });
+      }
+    } catch { /* ignore */ }
+  }
+
+  // ── History ─────────────────────────────────────────────────────────
+  let currentFilter = 'all';
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      currentFilter = btn.dataset.filter;
+      document.querySelectorAll('.filter-btn').forEach(b => {
+        b.className = 'filter-btn text-xs px-3 py-1 rounded-md ' +
+          (b.dataset.filter === currentFilter ? 'bg-gray-700 text-gray-200' : 'text-gray-500 hover:text-gray-300');
+      });
+      renderHistory();
+    });
+  });
+
   async function loadHistory() {
-    const historyList  = document.getElementById('history-list');
+    const historyList = document.getElementById('history-list');
     const historyEmpty = document.getElementById('history-empty');
     historyEmpty.classList.add('hidden');
     historyList.replaceChildren();
-    const loading = document.createElement('p');
-    loading.className = 'text-gray-600 text-sm';
-    loading.textContent = 'Loading...';
+    const loading = document.createElement('div');
+    loading.className = 'flex items-center gap-3 text-gray-600 text-sm';
+    loading.innerHTML = '<div class="w-4 h-4 rounded-full border-2 border-gray-600 border-t-gray-400 animate-spin"></div>Loading...';
     historyList.appendChild(loading);
 
     try {
-      const res = await fetch('/api/history');
+      const res = await fetch('/api/history?limit=100');
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Server error');
-      historyList.replaceChildren();
-      if (!data.length) {
-        historyEmpty.classList.remove('hidden');
-      } else {
-        data.forEach((t) => historyList.appendChild(buildTriageCard(t)));
-      }
+      if (!res.ok) throw new Error();
+      allTriages = data;
+      renderHistory();
     } catch {
       historyList.replaceChildren();
       const err = document.createElement('p');
@@ -264,33 +588,62 @@
     }
   }
 
-  // ── Voice input ───────────────────────────────────────────────────────────
-  const micBtn = document.getElementById('mic-btn');
-  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SR) {
-    micBtn.style.display = 'none';
-  } else {
-    const recognition = new SR();
-    recognition.continuous = false;
-    recognition.interimResults = false;
-    let recognizing = false;
-    micBtn.addEventListener('click', () => {
-      if (recognizing) return;
-      recognizing = true;
-      recognition.start();
-      micBtn.classList.add('recording', 'text-orange-400');
+  function renderHistory() {
+    const historyList = document.getElementById('history-list');
+    const historyEmpty = document.getElementById('history-empty');
+    historyList.replaceChildren();
+
+    const filtered = currentFilter === 'all' ? allTriages : allTriages.filter(t => t.verdict === currentFilter);
+    if (filtered.length === 0) {
+      historyEmpty.classList.remove('hidden');
+      return;
+    }
+    historyEmpty.classList.add('hidden');
+
+    filtered.forEach(t => {
+      const vc = VERDICT_COLORS[t.verdict] || VERDICT_COLORS.Safe;
+      const card = document.createElement('div');
+      card.className = 'bg-surface-900 border border-gray-800 rounded-xl p-4 cursor-pointer hover:border-gray-700 transition-all group';
+
+      const header = document.createElement('div');
+      header.className = 'flex items-center gap-2.5 flex-wrap';
+
+      const badge = document.createElement('span');
+      badge.className = `px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase tracking-wide border ${vc.bg} ${vc.text} ${vc.border}`;
+      badge.textContent = t.verdict;
+
+      const conf = document.createElement('span');
+      conf.className = 'text-xs text-gray-600';
+      conf.textContent = (t.confidence ?? '—') + '% confidence';
+
+      const domain = document.createElement('span');
+      domain.className = 'text-xs text-gray-500 font-mono';
+      domain.textContent = t.sender_domain || 'unknown';
+
+      const ts = document.createElement('span');
+      ts.className = 'text-xs text-gray-700 ml-auto';
+      ts.textContent = new Date(t.created_at).toLocaleString();
+
+      header.appendChild(badge);
+      header.appendChild(conf);
+      header.appendChild(domain);
+      header.appendChild(ts);
+
+      const preview = document.createElement('p');
+      preview.className = 'text-gray-600 text-xs mt-2 truncate group-hover:text-gray-500 transition-colors';
+      const txt = t.email_text || '';
+      preview.textContent = txt.length > 120 ? txt.slice(0, 120) + '…' : txt;
+
+      const detail = document.createElement('div');
+      detail.className = 'hidden mt-3 pt-3 border-t border-gray-800 text-sm text-gray-400 leading-relaxed';
+      detail.textContent = t.reasoning || '';
+
+      card.appendChild(header);
+      card.appendChild(preview);
+      card.appendChild(detail);
+      card.addEventListener('click', () => detail.classList.toggle('hidden'));
+      historyList.appendChild(card);
     });
-    recognition.onresult = (event) => {
-      recognizing = false;
-      const transcript = event.results[0][0].transcript;
-      emailInput.value += (emailInput.value ? ' ' : '') + transcript;
-      micBtn.classList.remove('recording', 'text-orange-400');
-    };
-    recognition.onerror = () => {
-      recognizing = false;
-      micBtn.classList.remove('recording', 'text-orange-400');
-    };
-    recognition.onend = () => { recognizing = false; };
   }
 </script>
 </body>
