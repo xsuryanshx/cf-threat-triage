@@ -4,7 +4,7 @@
  * A tab sticks out from the right edge; click it to open/close the panel.
  */
 
-const API = 'https://threat-triage.suryanshsinghrawat.workers.dev/api/analyze';
+// API calls are proxied through background.js to avoid host-page CSP blocks
 const SIDEBAR_ID = '__threattriage_root__';
 
 // Only inject once
@@ -533,16 +533,15 @@ function wireUp(shadow, host) {
     errorBox.style.display = 'none';
 
     try {
-      const res = await fetch(API, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ emailText: text }),
+      // Route through background service worker to bypass host-page CSP
+      const { ok, data } = await chrome.runtime.sendMessage({
+        type: 'ANALYZE',
+        emailText: text,
       });
-      const data = await res.json();
-      if (!res.ok) { showError(data.error ?? 'Analysis failed.'); return; }
+      if (!ok) { showError(data.error ?? 'Analysis failed.'); return; }
       renderResults(data);
-    } catch {
-      showError('Network error — check your connection.');
+    } catch (e) {
+      showError('Extension error: ' + (e?.message ?? 'unknown'));
     } finally {
       analyzeBtn.disabled = false;
       scanning.style.display = 'none';
