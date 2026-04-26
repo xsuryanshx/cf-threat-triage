@@ -2,9 +2,9 @@
   "manifest_version": 3,
   "name": "ThreatTriage",
   "version": "1.0.0",
-  "description": "AI-powered phishing email analyzer. Instantly score any email for threats using Workers AI.",
+  "description": "AI-powered phishing email analyzer. Click the tab on the right to scan any email for threats.",
   "action": {
-    "default_popup": "popup.html",
+    "default_title": "Toggle ThreatTriage",
     "default_icon": {
       "16": "icons/16.png",
       "48": "icons/48.png",
@@ -16,22 +16,21 @@
     "48": "icons/48.png",
     "128": "icons/128.png"
   },
+  "background": {
+    "service_worker": "background.js"
+  },
   "permissions": ["activeTab", "scripting"],
   "host_permissions": [
     "https://threat-triage.suryanshsinghrawat.workers.dev/*",
     "https://mail.google.com/*",
     "https://outlook.live.com/*",
     "https://outlook.office.com/*",
-    "https://outlook.office365.com/*"
+    "https://outlook.office365.com/*",
+    "<all_urls>"
   ],
   "content_scripts": [
     {
-      "matches": [
-        "https://mail.google.com/*",
-        "https://outlook.live.com/*",
-        "https://outlook.office.com/*",
-        "https://outlook.office365.com/*"
-      ],
+      "matches": ["<all_urls>"],
       "js": ["content.js"],
       "run_at": "document_idle"
     }

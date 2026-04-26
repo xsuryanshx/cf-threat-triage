@@ -37,21 +37,40 @@
 
 ThreatTriage also ships as a **Chrome / Edge / Brave extension** — a compact popup that lives in your toolbar.
 
+### How it works
+
+A **fixed sidebar panel** is injected into every page via Shadow DOM — completely isolated from the host page's styles. A tab sticks out from the right edge of the browser window at all times. Click it to slide the panel open; click again (or press `Esc`) to collapse it back.
+
+```
+  Page content          Tab    Panel (380px)
+  ─────────────────── ┌─────┐ ┌──────────────────────┐
+                      │  🛡  │ │ ThreatTriage ● Workers│
+                      │      │ │──────────────────────│
+  (normal page)       │Triage│ │ [email textarea]     │
+                      │      │ │ [Analyze Threat]     │
+                      │  ‹  │ │──────────────────────│
+                      │      │ │ 95 ● PHISHING        │
+                      └─────┘ │ 🔴 spoofed_domain    │
+                              │ 🟠 urgency_language  │
+                              └──────────────────────┘
+```
+
 ### Features
+- **Always-visible tab** on the right edge — never gets in the way
+- **Slides in smoothly** with CSS transition, collapses on `Esc` or tab click
 - **Auto-extracts** the open email from Gmail and Outlook Web — no copy-paste needed
-- **Threat gauge** showing confidence score 0–100
-- **Indicator cards** with severity levels (🔴 critical → 🔵 low)
+- **Shadow DOM** — fully isolated, zero CSS conflicts with host page
+- **Threat gauge** 0–100, verdict badge, indicator cards with severity
 - `Cmd/Ctrl + Enter` to analyze
-- Links back to the full web app
 
 ### Install (Development)
 
 ```bash
-# 1. Build icons
+# 1. Build icons (one-time)
 cd extension && npm install && node generate-icons.js
 
-# 2. Load in Chrome
-# Chrome → chrome://extensions → Enable Developer Mode
+# 2. Load in Chrome / Edge / Brave
+# → chrome://extensions → Enable Developer Mode
 # → Load unpacked → select the extension/ folder
 ```
 
@@ -59,11 +78,10 @@ cd extension && npm install && node generate-icons.js
 
 ```
 extension/
-├── manifest.json    # MV3, permissions for Gmail + Outlook + API
-├── popup.html       # Compact 400px popup UI
-├── popup.js         # Analyze logic, auto-extract, render results
-├── content.js       # Injected into Gmail/Outlook — extracts email text
-├── generate-icons.js
+├── manifest.json      # MV3, all_urls content script, no popup
+├── background.js      # Toolbar icon click → toggle sidebar message
+├── content.js         # Injects Shadow DOM sidebar into every page
+├── generate-icons.js  # Generates icons/16,48,128.png via canvas
 └── icons/
     ├── 16.png
     ├── 48.png
