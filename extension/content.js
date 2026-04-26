@@ -534,14 +534,23 @@ function wireUp(shadow, host) {
 
     try {
       // Route through background service worker to bypass host-page CSP
-      const { ok, data } = await chrome.runtime.sendMessage({
-        type: 'ANALYZE',
-        emailText: text,
-      });
-      if (!ok) { showError(data.error ?? 'Analysis failed.'); return; }
-      renderResults(data);
+      let result;
+      try {
+        result = await chrome.runtime.sendMessage({ type: 'ANALYZE', emailText: text });
+      } catch (msgErr) {
+        // Background not responding — fall back to direct fetch (works on non-CSP pages)
+        const res = await fetch('https://threat-triage.suryanshsinghrawat.workers.dev/api/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ emailText: text }),
+        });
+        const data = await res.json();
+        result = { ok: res.ok, data };
+      }
+      if (!result?.ok) { showError(result?.data?.error ?? 'Analysis failed.'); return; }
+      renderResults(result.data);
     } catch (e) {
-      showError('Extension error: ' + (e?.message ?? 'unknown'));
+      showError('Error: ' + (e?.message ?? 'unknown. Check the extension console.'));
     } finally {
       analyzeBtn.disabled = false;
       scanning.style.display = 'none';
