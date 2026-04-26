@@ -97,5 +97,7 @@ describe('handleAnalyze', () => {
     expect(res.status).toBe(500);
     const body = await res.json() as { error: string };
     expect(body.error).toContain('Analysis failed');
+    // D1 must NOT be written when verdict fails
+    expect(stmt.run).not.toHaveBeenCalled();
   });
 });
