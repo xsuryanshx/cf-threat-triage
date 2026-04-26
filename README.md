@@ -21,7 +21,7 @@
 
 ## Demo
 
-<video src="demo.mp4" width="100%" controls></video>
+<video src="https://github.com/user-attachments/assets/1566c03a-421f-4d78-a41e-11289f5a9056" width="100%" controls></video>
 
 ---
 
