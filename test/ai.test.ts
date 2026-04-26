@@ -46,4 +46,9 @@ describe('getVerdict', () => {
     const env = makeMockEnv({ response: '{"verdict":"Unknown","reasoning":"hmm"}' });
     await expect(getVerdict(env, 'prompt')).rejects.toThrow('Invalid verdict');
   });
+
+  it('throws if matched braces contain invalid JSON', async () => {
+    const env = makeMockEnv({ response: '{not: valid json}' });
+    await expect(getVerdict(env, 'prompt')).rejects.toThrow('LLM did not return valid JSON');
+  });
 });
